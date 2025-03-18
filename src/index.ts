@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-import {
-  McpServer,
-  ResourceTemplate,
-} from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { EmbeddingApiClient } from "./api.js";
@@ -19,7 +16,7 @@ const apiClient = new EmbeddingApiClient();
 // Tool: Store content with embeddings
 server.tool(
   "save-memory",
-  "Store content to memory",
+  "Save content to vector database",
   {
     content: z.string().describe("The content to store"),
     path: z.string().describe("Unique identifier path for the content"),
@@ -69,7 +66,7 @@ server.tool(
 // Tool: Search content using vector similarity
 server.tool(
   "search-memory",
-  "Retrieve content from memory",
+  "Search for information in vector database",
   {
     query: z.string().describe("The search query"),
     maxMatches: z
@@ -119,66 +116,9 @@ server.tool(
   }
 );
 
-// Resource: Search content and return as a resource
-server.resource(
-  "search-results",
-  new ResourceTemplate("search://{query}", { list: undefined }),
-  async (uri, { query }) => {
-    try {
-      // Ensure query is a string (could be a string[] from URI template)
-      const searchQuery = Array.isArray(query) ? query[0] : query;
-
-      const response = await apiClient.vectorSearch({ prompt: searchQuery });
-
-      if (response.error) {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: `Error searching content: ${response.error}`,
-            },
-          ],
-        };
-      }
-
-      if (!response.contextText || response.contextText.trim() === "") {
-        return {
-          contents: [
-            {
-              uri: uri.href,
-              text: "No matching content found for your query.",
-            },
-          ],
-        };
-      }
-
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: response.contextText,
-            mimeType: "text/markdown",
-          },
-        ],
-      };
-    } catch (error: unknown) {
-      console.error("Error in search resource:", error);
-      return {
-        contents: [
-          {
-            uri: uri.href,
-            text: "An error occurred while searching content.",
-          },
-        ],
-      };
-    }
-  }
-);
-
 // Add a prompt to help store new content
 server.prompt(
   "save-memory",
-  "A prompt to help store new content with embeddings",
   {
     path: z.string().describe("Unique identifier path for the content"),
     content: z.string().describe("The content to store"),
@@ -189,7 +129,7 @@ server.prompt(
         role: "user",
         content: {
           type: "text",
-          text: `Please help me store the following content with path "${path}":\n\n${content}\n\nYou can use the store-content tool to save this information.`,
+          text: `Please help me store the following content with path "${path}":\n\n${content}\n\nYou can use the save-memory tool to save this information.`,
         },
       },
     ],
@@ -199,7 +139,6 @@ server.prompt(
 // Add a prompt for searching content
 server.prompt(
   "search-memory",
-  "A prompt to search for knowledge",
   {
     query: z.string().describe("The search query"),
   },
@@ -209,7 +148,7 @@ server.prompt(
         role: "user",
         content: {
           type: "text",
-          text: `Please search for information about: ${query}\n\nYou can use the search-content tool to find relevant information.`,
+          text: `Please search for information about: ${query}\n\nYou can use the search-memory tool to find relevant information.`,
         },
       },
     ],
